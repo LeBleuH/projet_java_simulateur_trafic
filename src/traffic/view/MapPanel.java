@@ -7,13 +7,16 @@ import java.util.List;
 
 public class MapPanel extends JPanel {
     private Carte carte;
-    private final int CELL_SIZE = 100; // Taille d'une cellule de la grille en pixels
+    private final int CELL_SIZE = 100;
     private final int INTERSECTION_SIZE = 20;
     private final int ROAD_WIDTH = 10;
+    private final int MARGIN = 70;
 
     public MapPanel(Carte carte) {
         this.carte = carte;
-        setPreferredSize(new Dimension(carte.getCols() * CELL_SIZE + 50, carte.getRows() * CELL_SIZE + 50));
+        int width = (carte.getCols() - 1) * CELL_SIZE + 2 * MARGIN;
+        int height = (carte.getRows() - 1) * CELL_SIZE + 2 * MARGIN;
+        setPreferredSize(new Dimension(width, height));
     }
 
     @Override
@@ -34,21 +37,30 @@ public class MapPanel extends JPanel {
 
     private void drawRoutes(Graphics2D g) {
         g.setColor(Color.GRAY);
-        for (Route route : carte.getRoutes()) {
-            Point p1 = getIntersectionCenter(route.getDepart());
-            Point p2 = getIntersectionCenter(route.getArrivee());
-            
-            // Gestion de l'affichage pour le wrapping (si la distance est trop grande, ne pas dessiner la ligne directe)
-            if (p1.distance(p2) > CELL_SIZE * 1.5) {
-                // C'est une route qui wrap, on peut dessiner des bouts si on veut, 
-                // mais pour simplifier on ne dessine pas le trait qui traverse tout l'écran
-                continue; 
-            }
+        g.setStroke(new BasicStroke(ROAD_WIDTH));
 
-            g.setStroke(new BasicStroke(ROAD_WIDTH));
-            g.drawLine(p1.x, p1.y, p2.x, p2.y);
-            
-            // Dessiner une flèche pour la direction ?
+        int extension = CELL_SIZE / 2;
+
+        for (int i = 0; i < carte.getRows(); i++) {
+            Intersection first = carte.getIntersection(i, 0);
+            Intersection last = carte.getIntersection(i, carte.getCols() - 1);
+            Point pFirst = getIntersectionCenter(first);
+            Point pLast = getIntersectionCenter(last);
+            int y = pFirst.y;
+            int x1 = pFirst.x - extension;
+            int x2 = pLast.x + extension;
+            g.drawLine(x1, y, x2, y);
+        }
+
+        for (int j = 0; j < carte.getCols(); j++) {
+            Intersection top = carte.getIntersection(0, j);
+            Intersection bottom = carte.getIntersection(carte.getRows() - 1, j);
+            Point pTop = getIntersectionCenter(top);
+            Point pBottom = getIntersectionCenter(bottom);
+            int x = pTop.x;
+            int y1 = pTop.y - extension;
+            int y2 = pBottom.y + extension;
+            g.drawLine(x, y1, x, y2);
         }
     }
 
@@ -64,7 +76,7 @@ public class MapPanel extends JPanel {
                 // Dessiner le feu s'il y en a un
                 if (inter.aUnFeu()) {
                     FeuSignalisation feu = inter.getFeu();
-                    if (feu.getEtat() == EtatFeu.VERT) {
+                    if (feu.getCouleur() == CouleurFeu.VERT) {
                         g.setColor(Color.GREEN);
                     } else {
                         g.setColor(Color.RED);
@@ -81,14 +93,20 @@ public class MapPanel extends JPanel {
                 Point p = getVehiculePosition(v);
                 if (p != null) {
                     g.setColor(v.getCouleur());
-                    g.fillRect(p.x - 5, p.y - 5, 10, 10);
+                    if (v.getType() == TypeVehicule.BUS) {
+                        g.fillRect(p.x - 6, p.y - 6, 12, 12);
+                    } else {
+                        int[] xs = {p.x, p.x - 6, p.x + 6};
+                        int[] ys = {p.y - 7, p.y + 5, p.y + 5};
+                        g.fillPolygon(xs, ys, 3);
+                    }
                 }
             }
         }
     }
 
     private Point getIntersectionCenter(Intersection inter) {
-        return new Point(inter.getCol() * CELL_SIZE + 50, inter.getRow() * CELL_SIZE + 50);
+        return new Point(inter.getCol() * CELL_SIZE + MARGIN, inter.getRow() * CELL_SIZE + MARGIN);
     }
     
     private Point getVehiculePosition(Vehicule v) {
@@ -98,20 +116,14 @@ public class MapPanel extends JPanel {
         Point p1 = getIntersectionCenter(r.getDepart());
         Point p2 = getIntersectionCenter(r.getArrivee());
         
-        // Gestion du wrapping pour l'affichage
         if (p1.distance(p2) > CELL_SIZE * 1.5) {
-            // Si wrapping, on doit calculer différemment.
-            // Pour simplifier l'affichage temporaire : on ne l'affiche que si pas au milieu du saut
-            // Ou on calcule la position virtuelle.
-            // Si c'est un saut de bordure, p2 est "loin" de p1.
-            // On peut imaginer que p2 est juste à côté de p1 dans la direction donnée.
-            
             Direction dir = r.getDirection();
             int dx = 0, dy = 0;
-            if (dir == Direction.EST) dx = CELL_SIZE;
-            else if (dir == Direction.OUEST) dx = -CELL_SIZE;
-            else if (dir == Direction.SUD) dy = CELL_SIZE;
-            else if (dir == Direction.NORD) dy = -CELL_SIZE;
+            int extension = CELL_SIZE / 2;
+            if (dir == Direction.EST) dx = extension;
+            else if (dir == Direction.OUEST) dx = -extension;
+            else if (dir == Direction.SUD) dy = extension;
+            else if (dir == Direction.NORD) dy = -extension;
             
             p2 = new Point(p1.x + dx, p1.y + dy);
         }

@@ -2,12 +2,14 @@ package traffic.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class Carte {
     private int rows;
     private int cols;
     private Intersection[][] intersections;
     private List<Route> routes;
+    private Random random = new Random();
 
     public Carte(int rows, int cols) {
         this.rows = rows;
@@ -18,24 +20,17 @@ public class Carte {
     }
 
     private void initialiserCarte() {
-        // 1. Créer les intersections
+        // 1. Créer les intersections avec un feu à chaque croisement
         for (int i = 0; i < rows; i++) {
             for (int j = 0; j < cols; j++) {
                 intersections[i][j] = new Intersection(i, j);
-                
-                // Ajouter des feux aléatoirement ou à chaque intersection
-                // Le sujet dit "Placer 4 à 6 intersections avec feux"
-                // Pour l'instant, on en met un peu partout pour tester, ou on fait une méthode séparée
+
+                boolean departVert = (i + j) % 2 == 0;
+                EtatFeu etatInitial = departVert ? new EtatVert() : new EtatRouge();
+                int offset = random.nextInt(etatInitial.getDuree());
+                intersections[i][j].setFeu(new FeuSignalisation(etatInitial, offset));
             }
         }
-
-        // Placer quelques feux (exemple: 5 feux aléatoires)
-        // Ou pattern fixe pour déterminisme
-        intersections[1][1].setFeu(new FeuSignalisation());
-        intersections[1][3].setFeu(new FeuSignalisation());
-        intersections[3][1].setFeu(new FeuSignalisation());
-        intersections[3][3].setFeu(new FeuSignalisation());
-        intersections[2][2].setFeu(new FeuSignalisation());
 
         // 2. Créer les routes (One way alternating)
         // Rows: Pair -> Est, Impair -> Ouest

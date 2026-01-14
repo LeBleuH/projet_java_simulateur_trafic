@@ -54,4 +54,8 @@ public class Intersection {
     public Route getRouteEntrante(Direction direction) {
         return routesEntrantes.get(direction);
     }
+
+    public java.util.Collection<Route> getRoutesSortantes() {
+        return routesSortantes.values();
+    }
 }

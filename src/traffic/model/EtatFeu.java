@@ -1,5 +1,7 @@
 package traffic.model;
 
-public enum EtatFeu {
-    VERT, ROUGE
+public interface EtatFeu {
+    CouleurFeu getCouleur();
+    int getDuree();
+    EtatFeu suivant();
 }

@@ -1,33 +1,32 @@
 package traffic.model;
 
 public class FeuSignalisation {
-    private EtatFeu etat;
-    private int tempsRestant; // Temps restant dans l'état actuel (en ticks ou secondes)
-    private final int DUREE_VERT = 30;
-    private final int DUREE_ROUGE = 30;
+    private EtatFeu etat; // Maintenant c'est une instance de l'interface EtatFeu
+    private int tempsRestant;
 
     public FeuSignalisation() {
-        this.etat = EtatFeu.ROUGE; // Commence par rouge par défaut
-        this.tempsRestant = DUREE_ROUGE;
+        this.etat = new EtatRouge(); // Etat initial
+        this.tempsRestant = etat.getDuree();
     }
 
-    public EtatFeu getEtat() {
-        return etat;
+     public FeuSignalisation(EtatFeu etatInitial, int tempsRestantInitial) {
+         this.etat = etatInitial;
+         this.tempsRestant = tempsRestantInitial;
+     }
+    
+    public CouleurFeu getCouleur() {
+        return etat.getCouleur();
     }
 
-    public void setEtat(EtatFeu etat) {
+    // pour changer manuellement les etats  
+   /* public void setEtat(EtatFeu etat) {
         this.etat = etat;
-        // Réinitialiser le temps si on change manuellement (optionnel)
-        if (etat == EtatFeu.VERT) {
-            tempsRestant = DUREE_VERT;
-        } else {
-            tempsRestant = DUREE_ROUGE;
-        }
-    }
+        this.tempsRestant = etat.getDuree();
+    } */
 
-    /**
-     * Met à jour le feu de signalisation (appelé à chaque tick de simulation)
-     * @return true si l'état a changé
+    /*
+    Met à jour le feu de signalisation (appelé à chaque tick de simulation)
+    return true si l'état a changé
      */
     public boolean mettreAJour() {
         tempsRestant--;
@@ -39,12 +38,7 @@ public class FeuSignalisation {
     }
 
     private void changerEtat() {
-        if (this.etat == EtatFeu.VERT) {
-            this.etat = EtatFeu.ROUGE;
-            this.tempsRestant = DUREE_ROUGE;
-        } else {
-            this.etat = EtatFeu.VERT;
-            this.tempsRestant = DUREE_VERT;
-        }
+        this.etat = this.etat.suivant();
+        this.tempsRestant = this.etat.getDuree();
     }
 }
