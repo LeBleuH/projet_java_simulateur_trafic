@@ -25,6 +25,8 @@ public class Simulateur {
     private int nombreVehicules = 8;
     private static final double ZONE_ARRET = 12.0;
     private static final double DISTANCE_MIN = 10.0;
+    private long elapsedMillis = 0;
+    private double distanceTotaleParcourue = 0;
 
     public Simulateur() {
         carte = new Carte(5, 5);
@@ -57,6 +59,7 @@ public class Simulateur {
     }
 
     private void tick() {
+        elapsedMillis += delay;
         for (int i = 0; i < carte.getRows(); i++) {
             for (int j = 0; j < carte.getCols(); j++) {
                 Intersection inter = carte.getIntersection(i, j);
@@ -124,6 +127,7 @@ public class Simulateur {
                     continue;
                 }
 
+                double positionDepart = v.getPosition();
                 double longueur = route.getLongueur();
                 double position = v.getPosition();
                 double distanceRestante = longueur - position;
@@ -140,6 +144,11 @@ public class Simulateur {
                     if (!feuVertDepart && position > -ZONE_ARRET) {
                         v.fixerVitesseActuelle(0);
                         v.setPosition(-ZONE_ARRET);
+                        double nouvellePosition = v.getPosition();
+                        double delta = nouvellePosition - positionDepart;
+                        if (delta > 0) {
+                            distanceTotaleParcourue += delta;
+                        }
                         precedent = v;
                         continue;
                     }
@@ -197,6 +206,11 @@ public class Simulateur {
                     boolean estPrioritaire = prioritaire == null || prioritaire == v;
                     if (peutPasser && estPrioritaire && !intersectionsOccupees.contains(arrivee)) {
                         intersectionsOccupees.add(arrivee);
+                        double nouvellePosition = v.getPosition();
+                        double delta = nouvellePosition - positionDepart;
+                        if (delta > 0) {
+                            distanceTotaleParcourue += delta;
+                        }
                         passerIntersection(v, route);
                         continue;
                     } else {
@@ -205,6 +219,12 @@ public class Simulateur {
                         v.fixerVitesseActuelle(0);
                         position = positionArret;
                     }
+                }
+
+                double nouvellePosition = v.getPosition();
+                double delta = nouvellePosition - positionDepart;
+                if (delta > 0) {
+                    distanceTotaleParcourue += delta;
                 }
 
                 precedent = v;
@@ -261,6 +281,8 @@ public class Simulateur {
             r.getVehicules().clear();
         }
         genererVehicules(nombreVehicules);
+        elapsedMillis = 0;
+        distanceTotaleParcourue = 0;
         mainFrame.refresh();
     }
 
@@ -286,6 +308,38 @@ public class Simulateur {
             nombreVehicules = 0;
         }
         this.nombreVehicules = nombreVehicules;
+    }
+
+    public long getElapsedSeconds() {
+        return elapsedMillis / 1000;
+    }
+
+    public double getDistanceTotaleParcourue() {
+        return distanceTotaleParcourue;
+    }
+
+    public int getMovingVehicleCount() {
+        int count = 0;
+        for (Route r : carte.getRoutes()) {
+            for (Vehicule v : r.getVehicules()) {
+                if (v.getVitesseActuelle() > 0) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    public int getStoppedVehicleCount() {
+        int count = 0;
+        for (Route r : carte.getRoutes()) {
+            for (Vehicule v : r.getVehicules()) {
+                if (v.getVitesseActuelle() <= 0) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private int getDirectionPriority(Direction dir) {

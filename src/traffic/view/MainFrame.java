@@ -7,6 +7,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.Hashtable;
 
 public class MainFrame extends JFrame {
     private MapPanel mapPanel;
@@ -15,6 +16,9 @@ public class MainFrame extends JFrame {
     private JButton resetButton;
     private JSlider speedSlider;
     private JLabel vehicleCountLabel;
+    private JLabel timeLabel;
+    private JLabel movingStoppedLabel;
+    private JLabel distanceLabel;
     private JSpinner vehicleSpinner;
 
     public MainFrame(Carte carte, Simulateur simulateur) {
@@ -85,18 +89,40 @@ public class MainFrame extends JFrame {
         controlPanel.add(resetButton);
 
         controlPanel.add(new JLabel("Vitesse:"));
-        speedSlider = new JSlider(1, 4, 2); // 1=0.5x, 2=1x, 4=2x roughly
+        speedSlider = new JSlider(0, 2, 1);
         speedSlider.setMajorTickSpacing(1);
         speedSlider.setPaintTicks(true);
+        Hashtable<Integer, JLabel> labels = new Hashtable<>();
+        labels.put(0, new JLabel("x0.5"));
+        labels.put(1, new JLabel("x1"));
+        labels.put(2, new JLabel("x2"));
+        speedSlider.setLabelTable(labels);
+        speedSlider.setPaintLabels(true);
         speedSlider.addChangeListener(e -> {
             int val = speedSlider.getValue();
-            int delay = 200 / val;
+            int delay;
+            if (val == 0) {
+                delay = 200;
+            } else if (val == 1) {
+                delay = 100;
+            } else {
+                delay = 50;
+            }
             simulateur.setDelay(delay);
         });
         controlPanel.add(speedSlider);
         
         vehicleCountLabel = new JLabel("Véhicules: 0");
         controlPanel.add(vehicleCountLabel);
+
+        timeLabel = new JLabel("Temps: 00:00");
+        controlPanel.add(timeLabel);
+
+        movingStoppedLabel = new JLabel("Mouvement: 0 / Arrêt: 0");
+        controlPanel.add(movingStoppedLabel);
+
+        distanceLabel = new JLabel("Distance totale: 0.0");
+        controlPanel.add(distanceLabel);
 
         controlPanel.add(new JLabel("Nombre de véhicules:"));
         vehicleSpinner = new JSpinner(new SpinnerNumberModel(8, 0, 200, 1));
@@ -128,5 +154,15 @@ public class MainFrame extends JFrame {
     public void refresh() {
         mapPanel.repaint();
         vehicleCountLabel.setText("Véhicules: " + simulateur.getVehicleCount());
+        long secondes = simulateur.getElapsedSeconds();
+        long minutes = secondes / 60;
+        long resteSecondes = secondes % 60;
+        String tempsTexte = String.format("Temps: %02d:%02d", minutes, resteSecondes);
+        timeLabel.setText(tempsTexte);
+        int enMouvement = simulateur.getMovingVehicleCount();
+        int aArret = simulateur.getStoppedVehicleCount();
+        movingStoppedLabel.setText("Mouvement: " + enMouvement + " / Arrêt: " + aArret);
+        double distance = simulateur.getDistanceTotaleParcourue();
+        distanceLabel.setText(String.format("Distance totale: %.1f", distance));
     }
 }
