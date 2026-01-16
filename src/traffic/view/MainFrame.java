@@ -32,45 +32,20 @@ public class MainFrame extends JFrame {
         JScrollPane scrollPane = new JScrollPane(mapPanel);
         add(scrollPane, BorderLayout.CENTER);
 
-        JPanel legendPanel = new JPanel();
-        legendPanel.setLayout(new GridLayout(2, 1));
+        JPanel infoPanel = new JPanel();
+        infoPanel.setLayout(new GridLayout(4, 1));
 
-        JPanel voitureLegend = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int cx = 15;
-                int cy = getHeight() / 2;
-                g2d.setColor(Color.BLUE);
-                int[] xs = {cx, cx - 6, cx + 6};
-                int[] ys = {cy - 7, cy + 5, cy + 5};
-                g2d.fillPolygon(xs, ys, 3);
-                g2d.setColor(Color.BLACK);
-                g2d.drawString("Voiture", 30, cy + 4);
-            }
-        };
+        vehicleCountLabel = new JLabel("Véhicules: 0");
+        timeLabel = new JLabel("Temps: 00:00");
+        movingStoppedLabel = new JLabel("Mouvement: 0 / Arrêt: 0");
+        distanceLabel = new JLabel("Distance totale: 0.0");
 
-        JPanel busLegend = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int cx = 15;
-                int cy = getHeight() / 2;
-                g2d.setColor(Color.ORANGE);
-                g2d.fillRect(cx - 6, cy - 6, 12, 12);
-                g2d.setColor(Color.BLACK);
-                g2d.drawString("Bus", 30, cy + 4);
-            }
-        };
-
-        legendPanel.add(voitureLegend);
-        legendPanel.add(busLegend);
-        legendPanel.setPreferredSize(new Dimension(120, 80));
-        add(legendPanel, BorderLayout.EAST);
+        infoPanel.add(vehicleCountLabel);
+        infoPanel.add(timeLabel);
+        infoPanel.add(movingStoppedLabel);
+        infoPanel.add(distanceLabel);
+        infoPanel.setPreferredSize(new Dimension(180, 100));
+        add(infoPanel, BorderLayout.EAST);
 
         // Contrôles en bas
         JPanel controlPanel = new JPanel();
@@ -111,18 +86,6 @@ public class MainFrame extends JFrame {
             simulateur.setDelay(delay);
         });
         controlPanel.add(speedSlider);
-        
-        vehicleCountLabel = new JLabel("Véhicules: 0");
-        controlPanel.add(vehicleCountLabel);
-
-        timeLabel = new JLabel("Temps: 00:00");
-        controlPanel.add(timeLabel);
-
-        movingStoppedLabel = new JLabel("Mouvement: 0 / Arrêt: 0");
-        controlPanel.add(movingStoppedLabel);
-
-        distanceLabel = new JLabel("Distance totale: 0.0");
-        controlPanel.add(distanceLabel);
 
         controlPanel.add(new JLabel("Nombre de véhicules:"));
         vehicleSpinner = new JSpinner(new SpinnerNumberModel(8, 0, 200, 1));

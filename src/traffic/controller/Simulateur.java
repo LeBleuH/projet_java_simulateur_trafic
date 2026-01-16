@@ -13,8 +13,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
 import java.util.Random;
 import java.util.Set;
+import java.util.Queue;
+import java.util.LinkedList;
 
 public class Simulateur {
     private Carte carte;
@@ -23,13 +26,17 @@ public class Simulateur {
     private int delay = 100;
     private Random random = new Random();
     private int nombreVehicules = 8;
-    private static final double ZONE_ARRET = 12.0;
-    private static final double DISTANCE_MIN = 10.0;
+    private static final double ZONE_ARRET = 50.0;
+    private static final double DISTANCE_MIN = 140.0;
+    private static final double LONGUEUR_REFERENCE = 180.0;
+    private static final double SPEED_MULTIPLIER = 1.5;
     private long elapsedMillis = 0;
     private double distanceTotaleParcourue = 0;
+    private java.util.Set<Intersection> intersectionsOccupees = new java.util.HashSet<>();
 
     public Simulateur() {
         carte = new Carte(5, 5);
+        verifierReseau();
         genererVehicules(nombreVehicules);
         mainFrame = new MainFrame(carte, this);
         mainFrame.setVisible(true);
@@ -41,25 +48,61 @@ public class Simulateur {
         });
     }
 
+    private boolean isEntreeDepuisBord(Route route) {
+        Intersection depart = route.getDepart();
+        Direction dir = route.getDirection();
+        int rows = carte.getRows();
+        int cols = carte.getCols();
+        if (dir == Direction.EST && depart.getCol() == 0) {
+            return true;
+        } else if (dir == Direction.OUEST && depart.getCol() == cols - 1) {
+            return true;
+        } else if (dir == Direction.SUD && depart.getRow() == 0) {
+            return true;
+        } else if (dir == Direction.NORD && depart.getRow() == rows - 1) {
+            return true;
+        }
+        return false;
+    }
+
     private void genererVehicules(int count) {
-        List<Route> routes = carte.getRoutes();
+        List<Route> routes = new ArrayList<>();
+        for (Route r : carte.getRoutes()) {
+            if (isEntreeDepuisBord(r)) {
+                routes.add(r);
+            }
+        }
+        if (routes.isEmpty()) {
+            routes.addAll(carte.getRoutes());
+        }
+        Collections.shuffle(routes, random);
         for (int i = 0; i < count; i++) {
             if (routes.isEmpty()) break;
-            Route route = routes.get(random.nextInt(routes.size()));
+            Route route = routes.get(i % routes.size());
 
-            boolean isVoiture = random.nextBoolean();
-            double vitesse = isVoiture ? 2.0 : 1.0;
+            boolean isVoiture;
+            if (count >= 2 && i == 0) {
+                isVoiture = true;
+            } else if (count >= 2 && i == 1) {
+                isVoiture = false;
+            } else {
+                isVoiture = random.nextBoolean();
+            }
+            double baseVitesse = (isVoiture ? 2.0 : 1.0) * SPEED_MULTIPLIER;
+            double facteurLongueur = route.getLongueur() / LONGUEUR_REFERENCE;
+            double vitesse = baseVitesse * facteurLongueur;
             Color couleur = isVoiture ? Color.BLUE : Color.ORANGE;
             TypeVehicule type = isVoiture ? TypeVehicule.VOITURE : TypeVehicule.BUS;
             Vehicule v = new Vehicule(vitesse, couleur, type);
             route.ajouterVehicule(v);
-            double departOffset = -50.0;
+            double departOffset = -100.0;
             v.setPosition(departOffset);
         }
     }
 
     private void tick() {
         elapsedMillis += delay;
+        // 1) Mise à jour des feux
         for (int i = 0; i < carte.getRows(); i++) {
             for (int j = 0; j < carte.getCols(); j++) {
                 Intersection inter = carte.getIntersection(i, j);
@@ -69,50 +112,14 @@ public class Simulateur {
             }
         }
 
+        // 2) Tri des véhicules par route (du plus avancé au plus proche)
         Map<Route, List<Vehicule>> vehiculesParRoute = new HashMap<>();
-        Map<Intersection, Vehicule> vehiculePrioritaire = new HashMap<>();
-        Map<Intersection, Double> distancePrioritaire = new HashMap<>();
-        Map<Intersection, Integer> prioriteDirection = new HashMap<>();
 
         for (Route route : carte.getRoutes()) {
             List<Vehicule> vehicules = new ArrayList<>(route.getVehicules());
             vehicules.sort(Comparator.comparingDouble(Vehicule::getPosition).reversed());
             vehiculesParRoute.put(route, vehicules);
-
-            if (vehicules.isEmpty()) {
-                continue;
-            }
-
-            Vehicule leader = vehicules.get(0);
-            if (leader.getRouteActuelle() == null) {
-                continue;
-            }
-            double longueur = route.getLongueur();
-            double positionLeader = leader.getPosition();
-            double distanceRestanteLeader = longueur - positionLeader;
-            if (distanceRestanteLeader >= 0 && distanceRestanteLeader <= ZONE_ARRET) {
-                Intersection arrivee = route.getArrivee();
-                Double meilleure = distancePrioritaire.get(arrivee);
-                Integer prioriteExistante = prioriteDirection.get(arrivee);
-                int prioriteNouvelle = getDirectionPriority(route.getDirection());
-                boolean choisirNouveau = false;
-                if (prioriteExistante == null) {
-                    choisirNouveau = true;
-                } else if (prioriteNouvelle < prioriteExistante) {
-                    choisirNouveau = true;
-                } else if (prioriteNouvelle == prioriteExistante &&
-                           (meilleure == null || distanceRestanteLeader < meilleure)) {
-                    choisirNouveau = true;
-                }
-                if (choisirNouveau) {
-                    distancePrioritaire.put(arrivee, distanceRestanteLeader);
-                    vehiculePrioritaire.put(arrivee, leader);
-                    prioriteDirection.put(arrivee, prioriteNouvelle);
-                }
-            }
         }
-
-        Set<Intersection> intersectionsOccupees = new HashSet<>();
 
         for (Route route : carte.getRoutes()) {
             List<Vehicule> vehicules = vehiculesParRoute.get(route);
@@ -121,74 +128,108 @@ public class Simulateur {
             }
 
             Vehicule precedent = null;
+            double longueur = route.getLongueur();
+            double zoneArret = getZoneArret(route);
+            double distanceMin = getDistanceMin(route);
+            double positionArret = longueur - zoneArret;
+            Intersection arrivee = route.getArrivee();
+            boolean aUnFeuArrivee = arrivee != null && arrivee.aUnFeu();
+            boolean intersectionLibre = arrivee == null || !intersectionsOccupees.contains(arrivee);
 
             for (Vehicule v : vehicules) {
-                if (v.getRouteActuelle() == null) {
+                if (v.getRouteActuelle() != route) {
                     continue;
                 }
 
                 double positionDepart = v.getPosition();
-                double longueur = route.getLongueur();
                 double position = v.getPosition();
-                double distanceRestante = longueur - position;
-
                 boolean doitFreiner = false;
 
-                if (position < 0) {
+                // 2a) Entrée depuis le bord: respecter le premier feu (position < 0)
+                boolean entreeDepuisBord = isEntreeDepuisBord(route);
+                if (entreeDepuisBord && position < 0) {
                     Intersection departInter = route.getDepart();
-                    boolean feuVertDepart = true;
-                    if (departInter.aUnFeu()) {
-                        CouleurFeu couleurDepart = departInter.getFeu().getCouleur();
-                        feuVertDepart = (couleurDepart == CouleurFeu.VERT);
-                    }
-                    if (!feuVertDepart && position > -ZONE_ARRET) {
-                        v.fixerVitesseActuelle(0);
-                        v.setPosition(-ZONE_ARRET);
-                        double nouvellePosition = v.getPosition();
-                        double delta = nouvellePosition - positionDepart;
-                        if (delta > 0) {
-                            distanceTotaleParcourue += delta;
-                        }
-                        precedent = v;
-                        continue;
-                    }
-                }
-
-                Intersection arrivee = route.getArrivee();
-                if (distanceRestante <= ZONE_ARRET) {
-                    boolean feuVert = true;
-                    if (arrivee.aUnFeu()) {
-                        CouleurFeu couleurFeu = arrivee.getFeu().getCouleur();
-                        feuVert = (couleurFeu == CouleurFeu.VERT);
-                    }
-                    Vehicule prioritaire = vehiculePrioritaire.get(arrivee);
-                    boolean estPrioritaire = prioritaire == null || prioritaire == v;
-                    boolean intersectionLibre = !intersectionsOccupees.contains(arrivee);
-                    if (!feuVert || !estPrioritaire || !intersectionLibre) {
-                        doitFreiner = true;
-                        double positionArret = longueur - ZONE_ARRET;
-                        if (position > positionArret) {
-                            v.setPosition(positionArret);
-                            v.fixerVitesseActuelle(0);
-                            position = positionArret;
+                    if (departInter != null && departInter.aUnFeu()) {
+                        double distanceAvantIntersection = -position;
+                        double zoneArretDepart = getZoneArret(route);
+                        double positionArretDepart = -zoneArretDepart;
+                        if (distanceAvantIntersection <= zoneArretDepart) {
+                            boolean feuVertDepart = isFeuVert(departInter, route.getDirection());
+                            if (!feuVertDepart) {
+                                doitFreiner = true;
+                                if (position > positionArretDepart) {
+                                    v.setPosition(positionArretDepart);
+                                    v.fixerVitesseActuelle(0);
+                                    position = v.getPosition();
+                                }
+                            }
                         }
                     }
                 }
 
-                if (!doitFreiner && precedent != null) {
+                // 2b) Approche du feu d'arrivée: arrêt à la ligne si rouge ou intersection occupée
+                if (aUnFeuArrivee && !v.aPasseLigneFeu()) {
+                    double distanceRestante = longueur - position;
+                    if (distanceRestante <= zoneArret) {
+                        boolean feuVertArrivee = isFeuVert(arrivee, route.getDirection());
+                        if (!feuVertArrivee || !intersectionLibre) {
+                            doitFreiner = true;
+                            if (position >= positionArret) {
+                                v.setPosition(positionArret);
+                                v.fixerVitesseActuelle(0);
+                                position = v.getPosition();
+                            }
+                        } else {
+                            if (position >= positionArret) {
+                                v.setPasseLigneFeu(true);
+                                if (arrivee != null) {
+                                    intersectionsOccupees.add(arrivee);
+                                    intersectionLibre = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2c) Distance de sécurité avec le véhicule précédent
+                if (precedent != null) {
                     double distanceAvecPrecedent = precedent.getPosition() - position;
-                    if (distanceAvecPrecedent < DISTANCE_MIN) {
+                    if (distanceAvecPrecedent <= distanceMin) {
                         doitFreiner = true;
+                    } else if (distanceAvecPrecedent < 2 * distanceMin) {
+                        if (v.getVitesseActuelle() > precedent.getVitesseActuelle()) {
+                            v.fixerVitesseActuelle(precedent.getVitesseActuelle());
+                        }
                     }
                 }
 
+                // 3) Mise à jour vitesse et avancée
                 v.mettreAJourVitesse(doitFreiner);
                 v.avancer();
 
                 position = v.getPosition();
 
+                // 3a) Re-vérification à la ligne d'arrêt (limite de jitter)
+                if (aUnFeuArrivee && !v.aPasseLigneFeu()) {
+                    if (position >= positionArret) {
+                        boolean feuVertArrivee = isFeuVert(arrivee, route.getDirection());
+                        if (!feuVertArrivee || !intersectionLibre) {
+                            v.setPosition(positionArret);
+                            v.fixerVitesseActuelle(0);
+                            position = v.getPosition();
+                        } else {
+                            v.setPasseLigneFeu(true);
+                            if (arrivee != null) {
+                                intersectionsOccupees.add(arrivee);
+                                intersectionLibre = false;
+                            }
+                        }
+                    }
+                }
+
+                // 3b) Position max imposée par la distance de sécurité
                 if (precedent != null) {
-                    double positionMax = precedent.getPosition() - DISTANCE_MIN;
+                    double positionMax = precedent.getPosition() - distanceMin;
                     if (position > positionMax) {
                         v.setPosition(positionMax);
                         v.fixerVitesseActuelle(0);
@@ -196,29 +237,24 @@ public class Simulateur {
                     }
                 }
 
+                // 4) Passage d'intersection et libération de l'occupation
                 if (position >= longueur) {
-                    boolean peutPasser = true;
-                    if (arrivee.aUnFeu()) {
-                        CouleurFeu couleurFeu = arrivee.getFeu().getCouleur();
-                        peutPasser = (couleurFeu == CouleurFeu.VERT);
+                    double nouvellePosition = v.getPosition();
+                    double delta = nouvellePosition - positionDepart;
+                    if (delta > 0) {
+                        distanceTotaleParcourue += delta;
                     }
-                    Vehicule prioritaire = vehiculePrioritaire.get(arrivee);
-                    boolean estPrioritaire = prioritaire == null || prioritaire == v;
-                    if (peutPasser && estPrioritaire && !intersectionsOccupees.contains(arrivee)) {
-                        intersectionsOccupees.add(arrivee);
-                        double nouvellePosition = v.getPosition();
-                        double delta = nouvellePosition - positionDepart;
-                        if (delta > 0) {
-                            distanceTotaleParcourue += delta;
-                        }
-                        passerIntersection(v, route);
-                        continue;
-                    } else {
-                        double positionArret = longueur - ZONE_ARRET;
-                        v.setPosition(positionArret);
+                    boolean avaitPasseFeu = v.aPasseLigneFeu();
+                    boolean passe = passerIntersection(v, route);
+                    if (!passe) {
+                        v.setPosition(longueur);
                         v.fixerVitesseActuelle(0);
-                        position = positionArret;
                     }
+                    if (avaitPasseFeu && arrivee != null) {
+                        intersectionsOccupees.remove(arrivee);
+                    }
+                    v.setPasseLigneFeu(false);
+                    continue;
                 }
 
                 double nouvellePosition = v.getPosition();
@@ -234,23 +270,32 @@ public class Simulateur {
         mainFrame.refresh();
     }
 
-    private void passerIntersection(Vehicule v, Route currentRoute) {
+    private boolean passerIntersection(Vehicule v, Route currentRoute) {
         Intersection nextInter = currentRoute.getArrivee();
         java.util.List<Route> candidates = new java.util.ArrayList<>(nextInter.getRoutesSortantes());
         if (candidates.isEmpty()) {
-            return;
+            return false;
         }
         Route nextRoute = candidates.get(random.nextInt(candidates.size()));
         if (nextRoute != null) {
+            double distanceMinNext = getDistanceMin(nextRoute);
+            double minPos = Double.POSITIVE_INFINITY;
+            for (Vehicule autre : nextRoute.getVehicules()) {
+                double pos = autre.getPosition();
+                if (pos >= 0 && pos < minPos) {
+                    minPos = pos;
+                }
+            }
+            if (minPos < distanceMinNext) {
+                return false;
+            }
             currentRoute.retirerVehicule(v);
             nextRoute.ajouterVehicule(v);
-
             Intersection depart = nextRoute.getDepart();
             Direction dir = nextRoute.getDirection();
-            boolean entreeDepuisBord = false;
             int rows = carte.getRows();
             int cols = carte.getCols();
-
+            boolean entreeDepuisBord = false;
             if (dir == Direction.EST && depart.getCol() == 0) {
                 entreeDepuisBord = true;
             } else if (dir == Direction.OUEST && depart.getCol() == cols - 1) {
@@ -260,11 +305,15 @@ public class Simulateur {
             } else if (dir == Direction.NORD && depart.getRow() == rows - 1) {
                 entreeDepuisBord = true;
             }
-
             if (entreeDepuisBord) {
-                v.setPosition(-50.0);
+                v.setPosition(-100.0);
+            } else {
+                v.setPosition(0.0);
             }
+            v.setPasseLigneFeu(false);
+            return true;
         }
+        return false;
     }
 
     public void start() {
@@ -342,11 +391,52 @@ public class Simulateur {
         return count;
     }
 
-    private int getDirectionPriority(Direction dir) {
-        if (dir == Direction.NORD || dir == Direction.SUD) {
-            return 0;
+    // Suppression: priorité direction non utilisée (simplification)
+
+    private double getZoneArret(Route route) {
+        return ZONE_ARRET * route.getLongueur() / LONGUEUR_REFERENCE;
+    }
+
+    private double getDistanceMin(Route route) {
+        return DISTANCE_MIN * route.getLongueur() / LONGUEUR_REFERENCE;
+    }
+
+    private boolean isFeuVert(Intersection inter, Direction dir) {
+        if (inter == null || !inter.aUnFeu()) {
+            return true;
         }
-        return 1;
+        CouleurFeu couleurNordSud = inter.getFeu().getCouleur();
+        boolean nordSudVert = (couleurNordSud == CouleurFeu.VERT);
+        if (dir == Direction.NORD || dir == Direction.SUD) {
+            return nordSudVert;
+        }
+        return !nordSudVert;
+    }
+
+    private void verifierReseau() {
+        int rows = carte.getRows();
+        int cols = carte.getCols();
+        Set<Intersection> visitesIntersections = new HashSet<>();
+        Set<Route> visitesRoutes = new HashSet<>();
+        Queue<Intersection> file = new LinkedList<>();
+        Intersection depart = carte.getIntersection(0, 0);
+        visitesIntersections.add(depart);
+        file.add(depart);
+        while (!file.isEmpty()) {
+            Intersection courant = file.poll();
+            for (Route route : courant.getRoutesSortantes()) {
+                visitesRoutes.add(route);
+                Intersection suivant = route.getArrivee();
+                if (!visitesIntersections.contains(suivant)) {
+                    visitesIntersections.add(suivant);
+                    file.add(suivant);
+                }
+            }
+        }
+        boolean toutesIntersections = visitesIntersections.size() == rows * cols;
+        boolean toutesRoutes = visitesRoutes.size() == carte.getRoutes().size();
+        boolean ok = toutesIntersections && toutesRoutes;
+        System.out.println("Verification du reseau routier, connectivite=" + ok);
     }
 
     public static void main(String[] args) {

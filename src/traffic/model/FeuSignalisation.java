@@ -1,11 +1,11 @@
 package traffic.model;
 
 public class FeuSignalisation {
-    private EtatFeu etat; // Maintenant c'est une instance de l'interface EtatFeu
+    private EtatFeu etat; // Etat courant du feu (implémentation de EtatFeu)
     private int tempsRestant;
 
     public FeuSignalisation() {
-        this.etat = new EtatRouge(); // Etat initial
+        this.etat = new EtatRouge(); // Etat initial rouge
         this.tempsRestant = etat.getDuree();
     }
 
@@ -18,16 +18,7 @@ public class FeuSignalisation {
         return etat.getCouleur();
     }
 
-    // pour changer manuellement les etats  
-   /* public void setEtat(EtatFeu etat) {
-        this.etat = etat;
-        this.tempsRestant = etat.getDuree();
-    } */
-
-    /*
-    Met à jour le feu de signalisation (appelé à chaque tick de simulation)
-    return true si l'état a changé
-     */
+    // Met à jour le feu (appelé à chaque tick). Retourne true si l'état change.
     public boolean mettreAJour() {
         tempsRestant--;
         if (tempsRestant <= 0) {

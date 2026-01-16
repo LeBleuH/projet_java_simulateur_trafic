@@ -15,7 +15,7 @@ public class Route {
         this.arrivee = arrivee;
         this.direction = direction;
         this.vehicules = new ArrayList<>();
-        this.longueur = 100; // Unité arbitraire de distance entre intersections
+        this.longueur = 180; // Unité arbitraire de distance entre intersections
     }
 
     public Intersection getDepart() {

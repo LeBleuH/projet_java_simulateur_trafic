@@ -7,21 +7,17 @@ public class Vehicule {
     private double position; // Position sur la route (0 à route.longueur)
     private double vitesseCible;
     private double vitesseActuelle;
-    private double acceleration;
-    private double deceleration;
     private Color couleur;
-    private boolean estArrete;
     private TypeVehicule type;
+    private boolean aPasseLigneFeu;
 
     public Vehicule(double vitesse, Color couleur, TypeVehicule type) {
         this.vitesseCible = vitesse;
         this.vitesseActuelle = 0;
-        this.acceleration = 0.2;
-        this.deceleration = 0.3;
         this.couleur = couleur;
         this.type = type;
         this.position = 0;
-        this.estArrete = false;
+        this.aPasseLigneFeu = false;
     }
 
     public void setRouteActuelle(Route route) {
@@ -55,7 +51,7 @@ public class Vehicule {
 
     public void setPosition(double position) {
         if (routeActuelle != null) {
-            double min = -50.0;
+            double min = -routeActuelle.getLongueur() * 3.0;
             if (position < min) {
                 position = min;
             }
@@ -72,29 +68,18 @@ public class Vehicule {
     }
 
     public void arreter() {
-        estArrete = true;
         vitesseActuelle = 0;
     }
 
     public void redemarrer() {
-        estArrete = false;
+        // Pas d'état interne à réinitialiser: la vitesse sera fixée par la logique d'appel
     }
 
     public void mettreAJourVitesse(boolean doitFreiner) {
         if (doitFreiner) {
-            vitesseActuelle -= deceleration;
-            if (vitesseActuelle < 0) {
-                vitesseActuelle = 0;
-            }
-            if (vitesseActuelle == 0) {
-                estArrete = true;
-            }
+            vitesseActuelle = 0;
         } else {
-            estArrete = false;
-            vitesseActuelle += acceleration;
-            if (vitesseActuelle > vitesseCible) {
-                vitesseActuelle = vitesseCible;
-            }
+            vitesseActuelle = vitesseCible;
         }
     }
 
@@ -106,6 +91,14 @@ public class Vehicule {
             valeur = vitesseCible;
         }
         this.vitesseActuelle = valeur;
+    }
+    
+    public boolean aPasseLigneFeu() {
+        return aPasseLigneFeu;
+    }
+    
+    public void setPasseLigneFeu(boolean valeur) {
+        this.aPasseLigneFeu = valeur;
     }
     
     public boolean estArriveAuBout() {

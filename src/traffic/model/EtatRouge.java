@@ -8,7 +8,7 @@ public class EtatRouge implements EtatFeu {
 
     @Override
     public int getDuree() {
-        return 30; // 30 ticks/secondes
+        return 60;
     }
 
     @Override
